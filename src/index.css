@@ -1357,3 +1357,62 @@ footer strong {
     flex-shrink: 0;
   }
 }
+
+.back-button {
+  margin-bottom: 22px;
+  padding: 8px 12px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  border: 1px solid #d7e4ed;
+  border-radius: 9px;
+
+  color: #315570;
+  background: rgba(255, 255, 255, 0.7);
+
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.back-button span {
+  color: #0d9ee8;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.back-button:hover {
+  transform: translateX(-2px);
+  border-color: #9bcfea;
+  background: #ffffff;
+}
+
+.employee-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.employee-page-header .back-button {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+@media (max-width: 700px) {
+  .employee-page-header {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+    gap: 16px;
+  }
+}

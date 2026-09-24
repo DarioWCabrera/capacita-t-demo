@@ -43,6 +43,18 @@ function App() {
     setQuestion(0)
   }
 
+  const goBackEmployee = () => {
+    if (view === 'employee') {
+      setView('home')
+    } else if (view === 'training') {
+      setView('employee')
+    } else if (view === 'evaluation') {
+      setView('training')
+    } else if (view === 'finished') {
+      setView('home')
+    }
+  }
+
   return (
     <div className="app">
 
@@ -215,7 +227,17 @@ function App() {
         )}
         {view === 'employee' && (
           <section className="page">
-            <span className="eyebrow">PORTAL DEL EMPLEADO</span>
+            <div className="employee-page-header">
+              <span className="eyebrow">PORTAL DEL EMPLEADO</span>
+
+              <button
+                className="back-button"
+                onClick={goBackEmployee}
+              >
+                <span>←</span>
+                Volver al inicio
+              </button>
+            </div>
 
             <h2>Hola, Juan 👋</h2>
             <p>Tenés una capacitación pendiente.</p>
@@ -257,7 +279,17 @@ function App() {
 
         {view === 'training' && (
           <section className="page narrow">
-            <span className="eyebrow">PASO 1 DE 2</span>
+            <div className="employee-page-header">
+              <span className="eyebrow">PASO 1 DE 2</span>
+
+              <button
+                className="back-button"
+                onClick={goBackEmployee}
+              >
+                <span>←</span>
+                Volver a mis capacitaciones
+              </button>
+            </div>
 
             <h2>Uso correcto de EPP</h2>
 
@@ -286,14 +318,16 @@ function App() {
 
         {view === 'evaluation' && (
           <section className="page narrow">
-            <span className="eyebrow">PASO 2 DE 2 · EVALUACIÓN</span>
+            <div className="employee-page-header">
+              <span className="eyebrow">PASO 2 DE 2 · EVALUACIÓN</span>
 
-            <div className="progress">
-              <div
-                style={{
-                  width: `${((question + 1) / questions.length) * 100}%`
-                }}
-              />
+              <button
+                className="back-button"
+                onClick={goBackEmployee}
+              >
+                <span>←</span>
+                Volver a la capacitación
+              </button>
             </div>
 
             <span className="question-number">
