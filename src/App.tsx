@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { jsPDF } from 'jspdf'
 import logoCapacitaT from './assets/logo-capacita-t.png'
 import logoCapacitaHeader from './assets/logo-capacita-header.png'
+import plantelLogo from './assets/plantel-logo.jpg';
 import './index.css'
 
 type View =
@@ -8,9 +10,11 @@ type View =
   | 'employee'
   | 'training'
   | 'evaluation'
+  | 'signature'
   | 'finished'
   | 'admin'
   | 'new-training'
+  | 'login'
 
 const employees = [
   { name: 'Juan Pérez', status: 'Completada', date: '26/09/2026 18:42', score: '8/10' },
@@ -26,9 +30,331 @@ const employees = [
 ]
 
 function App() {
-  const [view, setView] = useState<View>('home')
+  const [view, setView] = useState<View>(() => {
+    const loggedOut = sessionStorage.getItem('capacita_logged_out');
+
+    return loggedOut === 'true' ? 'login' : 'home';
+  });
   const [question, setQuestion] = useState(0)
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
+
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const isDrawingRef = useRef(false)
+  const [hasSignature, setHasSignature] = useState(false)
+  const [savedSignature, setSavedSignature] = useState<string | null>(null)
+  const [signedAt, setSignedAt] = useState<string>('')
+  const [certificateId, setCertificateId] = useState<string>('')
+
+  const [showRecovery, setShowRecovery] = useState(false)
+  const [recoveryStep, setRecoveryStep] = useState<'email' | 'code' | 'password'>('email')
+  const [recoveryEmail, setRecoveryEmail] = useState('')
+  const [recoveryCode, setRecoveryCode] = useState('')
+
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const [authenticatedUser, setAuthenticatedUser] = useState<any>(() => {
+    const savedUser = localStorage.getItem('capacita_user');
+
+    if (!savedUser) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(savedUser);
+    } catch {
+      return null;
+    }
+  });
+
+  const getCanvasPoint = (
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    const canvas = signatureCanvasRef.current
+
+    if (!canvas) {
+      return { x: 0, y: 0 }
+    }
+
+    const rect = canvas.getBoundingClientRect()
+
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height),
+    }
+  }
+
+  const startSignature = (
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    const canvas = signatureCanvasRef.current
+    if (!canvas) return
+
+    event.preventDefault()
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const { x, y } = getCanvasPoint(event)
+
+    isDrawingRef.current = true
+    canvas.setPointerCapture(event.pointerId)
+
+    context.beginPath()
+    context.moveTo(x, y)
+  }
+
+  const drawSignature = (
+    event: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    if (!isDrawingRef.current) return
+
+    const canvas = signatureCanvasRef.current
+    if (!canvas) return
+
+    event.preventDefault()
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const { x, y } = getCanvasPoint(event)
+
+    context.lineWidth = 3
+    context.lineCap = 'round'
+    context.lineJoin = 'round'
+    context.strokeStyle = '#14213d'
+
+    context.lineTo(x, y)
+    context.stroke()
+
+    setHasSignature(true)
+  }
+
+  const stopSignature = (
+    event?: React.PointerEvent<HTMLCanvasElement>
+  ) => {
+    isDrawingRef.current = false
+
+    if (
+      event &&
+      signatureCanvasRef.current?.hasPointerCapture(event.pointerId)
+    ) {
+      signatureCanvasRef.current.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  const clearSignature = () => {
+    const canvas = signatureCanvasRef.current
+    if (!canvas) return
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    setHasSignature(false)
+  }
+
+  const confirmSignature = () => {
+    const canvas = signatureCanvasRef.current
+
+    if (!canvas || !hasSignature) return
+
+    const signatureImage = canvas.toDataURL('image/png')
+
+    const now = new Date()
+
+    const generatedCertificateId = `CAP-${now
+      .toISOString()
+      .slice(0, 10)
+      .replace(/-/g, '')}-${now
+        .getTime()
+        .toString()
+        .slice(-6)}`
+
+    setCertificateId(generatedCertificateId)
+
+    const formattedDate = new Intl.DateTimeFormat('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(now)
+
+    setSavedSignature(signatureImage)
+    setSignedAt(formattedDate)
+    setView('finished')
+  }
+
+  const downloadCertificate = () => {
+    if (!savedSignature) return
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    })
+
+    const pageWidth = doc.internal.pageSize.getWidth()
+
+    // Encabezado
+    doc.setFillColor(15, 43, 75)
+    doc.rect(0, 0, pageWidth, 35, 'F')
+
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(22)
+    doc.text('Capacita-T', 20, 18)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text('Formación que construye futuro', 20, 25)
+
+    // Título
+    doc.setTextColor(16, 42, 67)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('CONSTANCIA DE REALIZACIÓN', 20, 52)
+
+    doc.setFontSize(17)
+    doc.text(
+      'Uso correcto de elementos de protección personal',
+      20,
+      63
+    )
+
+    doc.setDrawColor(220, 227, 235)
+    doc.line(20, 74, 190, 74)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(100, 116, 139)
+
+    doc.text(
+      `Constancia Nro. ${certificateId}`,
+      20,
+      68
+    )
+
+    // Datos
+    doc.setFontSize(9)
+    doc.setTextColor(100, 116, 139)
+    doc.setFont('helvetica', 'bold')
+    doc.text('EMPLEADO', 20, 84)
+
+    doc.setTextColor(16, 42, 67)
+    doc.setFontSize(12)
+    doc.text('Juan Pérez', 20, 92)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text('DNI 32.456.789', 20, 99)
+
+    doc.setTextColor(100, 116, 139)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('FECHA Y HORA', 110, 84)
+
+    doc.setTextColor(16, 42, 67)
+    doc.setFontSize(11)
+    doc.text(signedAt || '-', 110, 92)
+
+    doc.setTextColor(100, 116, 139)
+    doc.setFontSize(9)
+    doc.text('EVALUACIÓN', 20, 114)
+
+    doc.setTextColor(16, 42, 67)
+    doc.setFontSize(11)
+    doc.text('Completada', 20, 122)
+
+    doc.setTextColor(100, 116, 139)
+    doc.setFontSize(9)
+    doc.text('RESULTADO', 110, 114)
+
+    doc.setTextColor(16, 42, 67)
+    doc.setFontSize(11)
+    doc.text('8/10', 110, 122)
+
+    // Declaración
+    doc.setFillColor(239, 248, 255)
+    doc.roundedRect(20, 135, 170, 32, 3, 3, 'F')
+
+    doc.setTextColor(52, 64, 84)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+
+    const declaration =
+      'El empleado declara haber realizado la capacitación "Uso correcto de EPP" y haber completado personalmente la evaluación correspondiente.'
+
+    const declarationLines = doc.splitTextToSize(
+      declaration,
+      155
+    )
+
+    doc.text(declarationLines, 28, 147)
+
+    // Firma
+    doc.setTextColor(100, 116, 139)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('FIRMA REGISTRADA', 20, 184)
+
+    doc.addImage(
+      savedSignature,
+      'PNG',
+      65,
+      190,
+      80,
+      35
+    )
+
+    doc.setDrawColor(148, 163, 184)
+    doc.line(60, 229, 150, 229)
+
+    doc.setTextColor(16, 42, 67)
+    doc.setFontSize(11)
+    doc.text(
+      'Juan Pérez',
+      pageWidth / 2,
+      236,
+      { align: 'center' }
+    )
+
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(148, 163, 184)
+    doc.setFontSize(9)
+    doc.text(
+      'Firma del empleado',
+      pageWidth / 2,
+      242,
+      { align: 'center' }
+    )
+
+    // Pie
+    doc.setDrawColor(220, 227, 235)
+    doc.line(20, 263, 190, 263)
+
+    doc.setFontSize(8)
+    doc.setTextColor(148, 163, 184)
+    doc.text(
+      'Registro generado por Capacita-T',
+      20,
+      272
+    )
+
+    doc.text(
+      'Formación que construye futuro',
+      190,
+      272,
+      { align: 'right' }
+    )
+
+    doc.save(
+      `constancia-${certificateId}-juan-perez.pdf`
+    )
+  }
 
   const questions = [
     '¿Cuál es el primer paso antes de comenzar una tarea?',
@@ -55,6 +381,66 @@ function App() {
     }
   }
 
+  const handleLogin = async () => {
+    setLoginError('');
+
+    if (!loginEmail.trim() || !loginPassword) {
+      setLoginError('Ingresá tu correo y contraseña.');
+      return;
+    }
+
+    try {
+      setLoginLoading(true);
+
+      const response = await fetch('http://localhost:3000/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setLoginError(data.message || 'No se pudo iniciar sesión.');
+        return;
+      }
+
+      localStorage.setItem('capacita_token', data.accessToken);
+      localStorage.setItem('capacita_user', JSON.stringify(data.user));
+
+      setAuthenticatedUser(data.user);
+
+      if (data.user.role === 'admin') {
+        setView('admin');
+      } else {
+        setView('employee');
+      }
+    } catch {
+      setLoginError('No se pudo conectar con el servidor.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('capacita_token');
+    localStorage.removeItem('capacita_user');
+
+    sessionStorage.setItem('capacita_logged_out', 'true');
+
+    setAuthenticatedUser(null);
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginError('');
+
+    setView('login');
+  };
+
   return (
     <div className="app">
 
@@ -71,7 +457,30 @@ function App() {
           />
         </button>
 
-        <span className="demo-badge">DEMO</span>
+        <div className="header-actions">
+          <span className="demo-badge">DEMO</span>
+
+          {authenticatedUser && view === 'admin' ? (
+            <div className="header-user">
+              <div className="header-user-avatar">
+                {authenticatedUser.firstName?.charAt(0)}
+              </div>
+
+              <div className="header-user-info">
+                <strong>{authenticatedUser.firstName}</strong>
+                <span>{authenticatedUser.company?.name}</span>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="header-login-button"
+              onClick={() => setView('login')}
+            >
+              Iniciar sesión
+            </button>
+          )}
+        </div>
       </header>
 
       <main>
@@ -225,6 +634,352 @@ function App() {
             </section>
           </>
         )}
+
+        {view === 'login' && (
+          <section className="login-page">
+
+            <div className="login-shell">
+
+              <div className="login-info">
+
+                <button
+                  type="button"
+                  className="login-back"
+                  onClick={goHome}
+                >
+                  ← Volver al inicio
+                </button>
+
+                <span className="eyebrow">
+                  ACCESO A CAPACITA-T
+                </span>
+
+                <h2>
+                  Tu espacio de capacitación,
+                  <span> en un solo lugar.</span>
+                </h2>
+
+                <p>
+                  Accedé al entorno privado de tu empresa para gestionar
+                  o realizar tus capacitaciones.
+                </p>
+
+                <div className="login-benefits">
+
+                  <div>
+                    <span>✓</span>
+                    <p>
+                      <strong>Acceso seguro</strong>
+                      Cada empresa cuenta con su propio espacio.
+                    </p>
+                  </div>
+
+                  <div>
+                    <span>✓</span>
+                    <p>
+                      <strong>Información organizada</strong>
+                      Capacitaciones, evaluaciones y constancias.
+                    </p>
+                  </div>
+
+                  <div>
+                    <span>✓</span>
+                    <p>
+                      <strong>Disponible desde cualquier lugar</strong>
+                      Ingresá desde computadora, tablet o celular.
+                    </p>
+                  </div>
+
+                </div>
+
+              </div>
+
+              <div className="login-card">
+
+                <div className="login-card-header">
+                  <img
+                    src={logoCapacitaHeader}
+                    alt="Capacita-T"
+                    className="login-logo"
+                  />
+
+                  <h3>Iniciar sesión</h3>
+
+                  <p>
+                    Ingresá con los datos proporcionados por tu empresa.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="google-login-button"
+                >
+                  <span className="google-icon">
+                    <span className="google-g">G</span>
+                  </span>
+
+                  Continuar con Google
+                </button>
+
+                <div className="login-divider">
+                  <span></span>
+                  <small>o ingresá con tu correo</small>
+                  <span></span>
+                </div>
+
+                <form
+                  className="login-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleLogin();
+                  }}
+                >
+
+                  <label>
+                    Correo electrónico
+
+                    <input
+                      type="email"
+                      placeholder="nombre@empresa.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </label>
+
+                  <label>
+                    Contraseña
+
+                    <input
+                      type="password"
+                      placeholder="Ingresá tu contraseña"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      autoComplete="current-password"
+                    />
+                  </label>
+
+                  <div className="forgot-password">
+                    <span>¿Olvidaste tu contraseña?</span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecoveryStep('email')
+                        setRecoveryEmail('')
+                        setRecoveryCode('')
+                        setShowRecovery(true)
+                      }}
+                    >
+                      Hacé click aquí
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="primary login-submit"
+                    disabled={loginLoading}
+                  >
+                    {loginLoading ? 'Ingresando...' : 'Ingresar'}
+                  </button>
+                  {loginError && (
+                    <div className="login-error">
+                      {loginError}
+                    </div>
+                  )}
+
+                  <form
+                    className="login-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleLogin();
+                    }}
+                  >
+
+                  </form>
+
+                </form>
+
+                <div className="login-help">
+                  <strong>¿Tenés problemas para ingresar?</strong>
+
+                  <span>
+                    Contactá al administrador de tu empresa.
+                  </span>
+                </div>
+
+                <div className="login-demo-note">
+                  <span>¿Querés conocer Capacita-T?</span>
+
+                  <button
+                    type="button"
+                    onClick={goHome}
+                  >
+                    Volver a la demostración
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+
+          </section>
+        )}
+
+        {showRecovery && (
+          <div
+            className="recovery-overlay"
+            onClick={() => setShowRecovery(false)}
+          >
+            <div
+              className="recovery-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="recovery-close"
+                onClick={() => setShowRecovery(false)}
+              >
+                ×
+              </button>
+
+              <img
+                src={logoCapacitaHeader}
+                alt="Capacita-T"
+                className="recovery-logo"
+              />
+
+              {recoveryStep === 'email' && (
+                <>
+                  <span className="eyebrow">
+                    RECUPERAR ACCESO
+                  </span>
+
+                  <h3>¿Olvidaste tu contraseña?</h3>
+
+                  <p>
+                    Ingresá el correo asociado a tu cuenta.
+                    Te enviaremos un código de verificación.
+                  </p>
+
+                  <label className="recovery-field">
+                    Correo electrónico
+
+                    <input
+                      type="email"
+                      value={recoveryEmail}
+                      onChange={(event) =>
+                        setRecoveryEmail(event.target.value)
+                      }
+                      placeholder="nombre@empresa.com"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="primary recovery-primary"
+                    disabled={!recoveryEmail.trim()}
+                    onClick={() => setRecoveryStep('code')}
+                  >
+                    Enviar código
+                  </button>
+                </>
+              )}
+
+              {recoveryStep === 'code' && (
+                <>
+                  <span className="eyebrow">
+                    VERIFICACIÓN
+                  </span>
+
+                  <h3>Revisá tu correo</h3>
+
+                  <p>
+                    Enviamos un código de 6 dígitos a
+                    <strong> {recoveryEmail}</strong>.
+                  </p>
+
+                  <label className="recovery-field">
+                    Código de verificación
+
+                    <input
+                      className="recovery-code"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={recoveryCode}
+                      onChange={(event) =>
+                        setRecoveryCode(
+                          event.target.value.replace(/\D/g, '')
+                        )
+                      }
+                      placeholder="000000"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="primary recovery-primary"
+                    disabled={recoveryCode.length !== 6}
+                    onClick={() => setRecoveryStep('password')}
+                  >
+                    Verificar código
+                  </button>
+
+                  <button
+                    type="button"
+                    className="recovery-secondary"
+                    onClick={() => setRecoveryStep('email')}
+                  >
+                    ← Cambiar correo
+                  </button>
+                </>
+              )}
+
+              {recoveryStep === 'password' && (
+                <>
+                  <span className="eyebrow">
+                    NUEVA CONTRASEÑA
+                  </span>
+
+                  <h3>Creá una nueva contraseña</h3>
+
+                  <p>
+                    Tu identidad fue verificada correctamente.
+                  </p>
+
+                  <label className="recovery-field">
+                    Nueva contraseña
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                    />
+                  </label>
+
+                  <label className="recovery-field">
+                    Repetir contraseña
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="primary recovery-primary"
+                    onClick={() => {
+                      setShowRecovery(false)
+                      setRecoveryStep('email')
+                    }}
+                  >
+                    Guardar nueva contraseña
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {view === 'employee' && (
           <section className="page">
             <div className="employee-page-header">
@@ -361,35 +1116,250 @@ function App() {
                 if (question < questions.length - 1) {
                   setQuestion(question + 1)
                 } else {
-                  setView('finished')
+                  setView('signature')
                 }
               }}
             >
               {question < questions.length - 1
                 ? 'Siguiente pregunta'
-                : 'Enviar evaluación'}
+                : 'Continuar a la firma'}
             </button>
           </section>
         )}
 
-        {view === 'finished' && (
-          <section className="page narrow centered">
-            <div className="success">✓</div>
+        {view === 'signature' && (
+          <section className="page narrow signature-page">
 
-            <h2>Evaluación enviada</h2>
+            <div className="employee-page-header">
+              <span className="eyebrow">
+                CONFIRMACIÓN DE CAPACITACIÓN
+              </span>
 
-            <p>
-              Gracias, Juan. Tu participación quedó registrada correctamente.
-            </p>
-
-            <div className="result-card">
-              <span>Capacitación realizada</span>
-              <strong>29/09/2026 · 18:42</strong>
+              <button
+                className="back-button"
+                onClick={() => setView('evaluation')}
+              >
+                <span>←</span>
+                Volver a la evaluación
+              </button>
             </div>
 
-            <button className="secondary" onClick={goHome}>
-              Volver al inicio
+            <h2>Firma del empleado</h2>
+
+            <p className="signature-intro">
+              La evaluación fue completada. Para finalizar la capacitación,
+              firmá dentro del recuadro.
+            </p>
+
+            <div className="signature-summary">
+              <div>
+                <span>Empleado</span>
+                <strong>Juan Pérez</strong>
+                <small className="certificate-dni">
+                  DNI 32.456.789
+                </small>
+              </div>
+
+              <div>
+                <span>Capacitación</span>
+                <strong>Uso correcto de EPP</strong>
+              </div>
+
+              <div>
+                <span>Confirmación</span>
+                <strong>Realización de capacitación y evaluación</strong>
+              </div>
+            </div>
+
+            <div className="signature-declaration">
+              <span className="signature-check">✓</span>
+
+              <p>
+                Declaro haber realizado la capacitación
+                <strong> “Uso correcto de EPP” </strong>
+                y haber completado personalmente la evaluación correspondiente.
+              </p>
+            </div>
+
+            <div className="signature-field">
+              <div className="signature-field-header">
+                <div>
+                  <strong>Firma del empleado</strong>
+                  <span>Firmá con el dedo o con el mouse</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="clear-signature"
+                  onClick={clearSignature}
+                  disabled={!hasSignature}
+                >
+                  Borrar firma
+                </button>
+              </div>
+
+              <canvas
+                ref={signatureCanvasRef}
+                className="signature-canvas"
+                width={900}
+                height={300}
+                onPointerDown={startSignature}
+                onPointerMove={drawSignature}
+                onPointerUp={stopSignature}
+                onPointerCancel={stopSignature}
+                onPointerLeave={stopSignature}
+              />
+
+              <span className="signature-line-label">
+                Firma
+              </span>
+            </div>
+
+            {!hasSignature && (
+              <p className="signature-help">
+                ✍️ La firma es necesaria para finalizar la capacitación.
+              </p>
+            )}
+
+            <button
+              className="primary full signature-confirm"
+              disabled={!hasSignature}
+              onClick={confirmSignature}
+            >
+              Confirmar firma y finalizar
             </button>
+
+            <p className="signature-legal-note">
+              La firma quedará asociada al registro de realización de esta
+              capacitación.
+            </p>
+
+          </section>
+        )}
+
+        {view === 'finished' && (
+          <section className="page narrow centered completion-page">
+
+            <div className="success">✓</div>
+
+            <span className="eyebrow">CAPACITACIÓN FINALIZADA</span>
+
+            <h2>Capacitación completada</h2>
+
+            <p className="completion-intro">
+              Gracias, Juan. Tu capacitación, evaluación y firma
+              quedaron registradas correctamente.
+            </p>
+
+            <div className="completion-certificate">
+
+              <div className="certificate-header">
+                <div>
+                  <span className="certificate-label">
+                    CONSTANCIA DE REALIZACIÓN
+                  </span>
+
+                  <h3>
+                    Uso correcto de elementos de protección personal
+                  </h3>
+                </div>
+
+                <span className="certificate-status">
+                  ✓ COMPLETADA
+                </span>
+              </div>
+
+              <div className="certificate-data">
+
+                <div>
+                  <span>Empleado</span>
+                  <strong>Juan Pérez</strong>
+                </div>
+
+                <div>
+                  <span>Fecha y hora</span>
+                  <strong>{signedAt}</strong>
+                </div>
+
+                <div>
+                  <span>Evaluación</span>
+                  <strong>Completada</strong>
+                </div>
+
+                <div>
+                  <span>Resultado</span>
+                  <strong>8/10</strong>
+                </div>
+
+                <div>
+                  <span>Nº de constancia</span>
+                  <strong>{certificateId}</strong>
+                </div>
+
+                <div>
+                  <span>Estado</span>
+                  <strong>Firmada</strong>
+                </div>
+
+              </div>
+
+              <div className="certificate-declaration">
+                <p>
+                  El empleado declara haber realizado la capacitación
+                  <strong> “Uso correcto de EPP” </strong>
+                  y haber completado personalmente la evaluación
+                  correspondiente.
+                </p>
+              </div>
+
+              <div className="certificate-signature">
+
+                <span>Firma registrada</span>
+
+                {savedSignature && (
+                  <img
+                    src={savedSignature}
+                    alt="Firma de Juan Pérez"
+                  />
+                )}
+
+                <div className="certificate-signature-line">
+                  <strong>Juan Pérez</strong>
+                  <small>Firma del empleado</small>
+                </div>
+
+              </div>
+
+              <div className="certificate-footer">
+                <span>
+                  Registro generado por <strong>Capacita-T</strong>
+                </span>
+
+                <span>
+                  Formación que construye futuro
+                </span>
+              </div>
+
+            </div>
+
+            <div className="completion-actions">
+
+              <button
+                className="primary"
+                onClick={downloadCertificate}
+              >
+                ↓ Descargar constancia
+              </button>
+
+              <button
+                className="secondary"
+                onClick={goHome}
+              >
+                Volver al inicio
+              </button>
+
+            </div>
+
           </section>
         )}
 
@@ -398,8 +1368,35 @@ function App() {
 
             <div className="dashboard-title">
               <div>
-                <span className="eyebrow">PANEL ADMINISTRADOR</span>
-                <h2>Resumen de capacitación</h2>
+                <p className="eyebrow">PANEL ADMINISTRADOR</p>
+
+                <div className="admin-company-heading">
+                  <div>
+                    <h1>Resumen de capacitación</h1>
+
+                  </div>
+
+                  {authenticatedUser?.company && (
+                    <div
+                      className="company-identity company-identity-logo"
+                      style={{
+                        borderColor:
+                          authenticatedUser.company.primaryColor || '#0b5cab',
+                      }}
+                    >
+                      <img
+                        src={plantelLogo}
+                        alt="Plantel"
+                        className="company-logo"
+                      />
+
+                      <div>
+                        <span>Empresa</span>
+                        <strong>{authenticatedUser.company.name}</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="admin-actions">
@@ -411,10 +1408,11 @@ function App() {
                 </button>
 
                 <button
+                  type="button"
                   className="secondary"
-                  onClick={goHome}
+                  onClick={handleLogout}
                 >
-                  Salir del panel
+                  Cerrar sesión
                 </button>
               </div>
             </div>
@@ -436,22 +1434,28 @@ function App() {
               </article>
 
               <article>
-                <span>Promedio</span>
-                <strong>8.5</strong>
+                <span>Promedio general</span>
+                <strong>85%</strong>
               </article>
             </div>
 
-            <div className="admin-training">
-              <div>
-                <span className="status active">ACTIVA</span>
-                <h3>Uso correcto de elementos de protección personal</h3>
-              </div>
+           <div className="admin-training">
+  <div className="admin-training-main">
+    <span className="status active">ACTIVA</span>
 
-              <div className="dates">
-                <span>📅 Apertura: 25/09/2026 · 08:00</span>
-                <span>🔒 Cierre: 30/09/2026 · 23:59</span>
-              </div>
-            </div>
+    <h3>Uso correcto de elementos de protección personal</h3>
+
+    <p className="admin-training-description">
+  Capacitación sobre selección, utilización, cuidado y control
+  de los elementos de protección personal durante las tareas laborales.
+</p>
+  </div>
+
+  <div className="dates">
+    <span>🗓️ Apertura: 25/09/2026 · 08:00</span>
+    <span>🔒 Cierre: 30/09/2026 · 23:59</span>
+  </div>
+</div>
 
             <div className="table-wrap">
               <table>
