@@ -2060,7 +2060,7 @@ Capacita-T · Formación que construye futuro`;
 
                   <div className="library-card-actions">
                     <a
-                      href="https://www.argentina.gob.ar/srt/capacitacion/aula-virtual"
+                      href="https://www.argentina.gob.ar/sites/default/files/programa_trabajo_en_altura.pdf"
                       target="_blank"
                       rel="noreferrer"
                     >
