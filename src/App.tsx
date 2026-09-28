@@ -55,6 +55,20 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
 
+  const [newTrainingTitle, setNewTrainingTitle] = useState('');
+  const [newTrainingDescription, setNewTrainingDescription] = useState('');
+  const [newTrainingSource, setNewTrainingSource] = useState('');
+  const [newTrainingMaterialTitle, setNewTrainingMaterialTitle] = useState('');
+  const [newTrainingMaterialUrl, setNewTrainingMaterialUrl] = useState('');
+
+  const [newTrainingQuestions, setNewTrainingQuestions] = useState([
+    {
+      text: '',
+      options: ['', '', ''],
+      correctAnswer: 0,
+    },
+  ]);
+
   const [authenticatedUser, setAuthenticatedUser] = useState<any>(() => {
     const savedUser = localStorage.getItem('capacita_user');
 
@@ -357,11 +371,51 @@ function App() {
   }
 
   const questions = [
-    '¿Cuál es el primer paso antes de comenzar una tarea?',
-    '¿Cuándo deben utilizarse los elementos de protección personal?',
-    '¿Qué debe hacerse si se detecta una condición insegura?',
-    '¿Quién es responsable de cumplir las normas de seguridad?',
-    '¿Qué debe verificarse antes de utilizar una herramienta?',
+    {
+      text: '¿Cuál es la función principal de los elementos de protección personal (EPP)?',
+      options: [
+        'Reducir la exposición del trabajador a determinados riesgos',
+        'Reemplazar todas las medidas de prevención',
+        'Evitar la necesidad de capacitación',
+      ],
+      correctAnswer: 0,
+    },
+    {
+      text: '¿Cuándo deben utilizarse los elementos de protección personal?',
+      options: [
+        'Únicamente después de que ocurra un accidente',
+        'Cuando la tarea y los riesgos presentes requieran su utilización',
+        'Solamente cuando lo solicite un compañero',
+      ],
+      correctAnswer: 1,
+    },
+    {
+      text: '¿Qué debe hacerse si un elemento de protección personal está deteriorado?',
+      options: [
+        'Continuar utilizándolo hasta finalizar la jornada',
+        'Guardarlo y utilizar otro sin informar',
+        'Informar la situación y solicitar su reemplazo',
+      ],
+      correctAnswer: 2,
+    },
+    {
+      text: '¿Qué debe verificarse antes de utilizar un EPP?',
+      options: [
+        'Que se encuentre en condiciones adecuadas para su utilización',
+        'Únicamente que tenga el color correspondiente',
+        'Que haya sido utilizado anteriormente por otro trabajador',
+      ],
+      correctAnswer: 0,
+    },
+    {
+      text: '¿Quién debe colaborar con el cuidado de los elementos de protección personal?',
+      options: [
+        'Únicamente el responsable de Seguridad e Higiene',
+        'El trabajador que los utiliza',
+        'Solamente el proveedor de los elementos',
+      ],
+      correctAnswer: 1,
+    },
   ]
 
   const goHome = () => {
@@ -380,6 +434,315 @@ function App() {
       setView('home')
     }
   }
+
+  const updateTrainingQuestion = (
+    questionIndex: number,
+    text: string,
+  ) => {
+    setNewTrainingQuestions((currentQuestions) =>
+      currentQuestions.map((question, index) =>
+        index === questionIndex
+          ? { ...question, text }
+          : question
+      )
+    );
+  };
+
+  const updateTrainingOption = (
+    questionIndex: number,
+    optionIndex: number,
+    value: string,
+  ) => {
+    setNewTrainingQuestions((currentQuestions) =>
+      currentQuestions.map((question, index) => {
+        if (index !== questionIndex) {
+          return question;
+        }
+
+        const updatedOptions = [...question.options];
+        updatedOptions[optionIndex] = value;
+
+        return {
+          ...question,
+          options: updatedOptions,
+        };
+      })
+    );
+  };
+
+  const addTrainingOption = (questionIndex: number) => {
+    setNewTrainingQuestions((currentQuestions) =>
+      currentQuestions.map((question, index) =>
+        index === questionIndex
+          ? {
+            ...question,
+            options: [...question.options, ''],
+          }
+          : question
+      )
+    );
+  };
+
+  const removeTrainingOption = (
+    questionIndex: number,
+    optionIndex: number,
+  ) => {
+    setNewTrainingQuestions((currentQuestions) =>
+      currentQuestions.map((question, index) => {
+        if (index !== questionIndex) {
+          return question;
+        }
+
+        const updatedOptions = question.options.filter(
+          (_, index) => index !== optionIndex
+        );
+
+        let updatedCorrectAnswer = question.correctAnswer;
+
+        if (optionIndex === question.correctAnswer) {
+          updatedCorrectAnswer = 0;
+        } else if (optionIndex < question.correctAnswer) {
+          updatedCorrectAnswer = question.correctAnswer - 1;
+        }
+
+        return {
+          ...question,
+          options: updatedOptions,
+          correctAnswer: updatedCorrectAnswer,
+        };
+      })
+    );
+  };
+
+  const addTrainingQuestion = () => {
+    setNewTrainingQuestions((currentQuestions) => [
+      ...currentQuestions,
+      {
+        text: '',
+        options: ['', '', ''],
+        correctAnswer: 0,
+      },
+    ]);
+  };
+
+  const removeTrainingQuestion = (questionIndex: number) => {
+    setNewTrainingQuestions((currentQuestions) =>
+      currentQuestions.filter((_, index) => index !== questionIndex)
+    );
+  };
+
+  const createTrainingFromLibrary = (
+    title: string,
+    description: string,
+    source: string,
+    materialTitle: string,
+    materialUrl: string,
+  ) => {
+    setNewTrainingTitle(title);
+    setNewTrainingDescription(description);
+    setNewTrainingSource(source);
+    setNewTrainingMaterialTitle(materialTitle);
+    setNewTrainingMaterialUrl(materialUrl);
+    setView('new-training');
+  };
+
+  const shareTrainingByWhatsApp = () => {
+    const trainingUrl = 'https://capacita-t.dcweb-dev.com.ar/';
+
+    const message = `Hola. Plantel te asignó una nueva capacitación:
+
+📚 Uso correcto de elementos de protección personal
+
+Ingresá al siguiente enlace para realizarla:
+${trainingUrl}
+
+Capacita-T · Formación que construye futuro`;
+
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(message)}`,
+      '_blank',
+    );
+  };
+
+  const downloadPrintableTraining = () => {
+    const doc = new jsPDF();
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 18;
+    let y = 20;
+
+    // Encabezado
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('Capacita-T', margin, y);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Formación que construye futuro', margin, y + 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('PLANTEL', pageWidth - margin, y, { align: 'right' });
+
+    y += 20;
+
+    doc.setDrawColor(210);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Título
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('REGISTRO DE CAPACITACIÓN PRESENCIAL', margin, y);
+
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.text(
+      'Uso correcto de elementos de protección personal',
+      margin,
+      y,
+    );
+
+    y += 10;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+
+    const description =
+      'Capacitación sobre selección, utilización, cuidado y control de los elementos de protección personal durante las tareas laborales.';
+
+    const descriptionLines = doc.splitTextToSize(
+      description,
+      pageWidth - margin * 2,
+    );
+
+    doc.text(descriptionLines, margin, y);
+    y += descriptionLines.length * 5 + 8;
+
+    // Datos del trabajador
+    doc.setFont('helvetica', 'bold');
+    doc.text('DATOS DEL TRABAJADOR', margin, y);
+    y += 8;
+
+    doc.setFont('helvetica', 'normal');
+    doc.text('Nombre y apellido: __________________________________________', margin, y);
+    y += 8;
+    doc.text('DNI: ______________________', margin, y);
+    y += 8;
+    doc.text('Sector / Puesto: ___________________________________________', margin, y);
+    y += 8;
+    doc.text('Fecha de capacitación: ____ / ____ / ______', margin, y);
+
+    y += 14;
+
+    // Evaluación
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('EVALUACIÓN', margin, y);
+
+    y += 8;
+
+    questions.forEach((item, questionIndex) => {
+      const questionLines = doc.splitTextToSize(
+        `${questionIndex + 1}. ${item.text}`,
+        pageWidth - margin * 2,
+      );
+
+      const requiredHeight =
+        questionLines.length * 5 +
+        item.options.length * 7 +
+        8;
+
+      if (y + requiredHeight > 270) {
+        doc.addPage();
+        y = 20;
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(questionLines, margin, y);
+
+      y += questionLines.length * 5 + 3;
+
+      doc.setFont('helvetica', 'normal');
+
+      item.options.forEach((option) => {
+        const optionLines = doc.splitTextToSize(
+          option,
+          pageWidth - margin * 2 - 10,
+        );
+
+        doc.rect(margin + 2, y - 3, 4, 4);
+        doc.text(optionLines, margin + 10, y);
+
+        y += optionLines.length * 5 + 2;
+      });
+
+      y += 4;
+    });
+
+    // Espacio final
+    if (y > 205) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('REGISTRO DE REALIZACIÓN', margin, y);
+
+    y += 10;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    const declaration =
+      'Declaro haber participado de la capacitación indicada y haber completado la evaluación precedente.';
+
+    const declarationLines = doc.splitTextToSize(
+      declaration,
+      pageWidth - margin * 2,
+    );
+
+    doc.text(declarationLines, margin, y);
+
+    y += declarationLines.length * 5 + 12;
+
+    doc.text('Resultado: __________ / 5', margin, y);
+    y += 12;
+
+    doc.text('Firma del trabajador:', margin, y);
+    doc.text('Firma del responsable:', 115, y);
+
+    y += 25;
+
+    doc.line(margin, y, 85, y);
+    doc.line(115, y, pageWidth - margin, y);
+
+    y += 6;
+
+    doc.setFontSize(8);
+    doc.text('Aclaración / DNI', margin, y);
+    doc.text('Aclaración / Cargo', 115, y);
+
+    y += 18;
+
+    doc.setDrawColor(210);
+    doc.line(margin, y, pageWidth - margin, y);
+
+    y += 6;
+
+    doc.setFontSize(7);
+    doc.text(
+      'Documento generado por Capacita-T · Registro para modalidad presencial',
+      pageWidth / 2,
+      y,
+      { align: 'center' },
+    );
+
+    doc.save('capacitacion-epp-plantel-imprimible.pdf');
+  };
 
   const handleLogin = async () => {
     setLoginError('');
@@ -1090,16 +1453,11 @@ function App() {
             </span>
 
             <h2 className="question">
-              {questions[question]}
+              {questions[question].text}
             </h2>
 
             <div className="answers">
-              {[
-                'Antes de iniciar la tarea',
-                'Solamente si lo solicita un supervisor',
-                'Cuando ocurre un accidente',
-                'Al finalizar la jornada'
-              ].map((answer, index) => (
+              {questions[question].options.map((answer, index) => (
                 <label className="answer" key={index}>
                   <input
                     type="radio"
@@ -1439,23 +1797,41 @@ function App() {
               </article>
             </div>
 
-           <div className="admin-training">
-  <div className="admin-training-main">
-    <span className="status active">ACTIVA</span>
+            <div className="admin-training">
+              <div className="admin-training-main">
+                <span className="status active">ACTIVA</span>
 
-    <h3>Uso correcto de elementos de protección personal</h3>
+                <h3>Uso correcto de elementos de protección personal</h3>
 
-    <p className="admin-training-description">
-  Capacitación sobre selección, utilización, cuidado y control
-  de los elementos de protección personal durante las tareas laborales.
-</p>
-  </div>
+                <p className="admin-training-description">
+                  Capacitación sobre selección, utilización, cuidado y control
+                  de los elementos de protección personal durante las tareas laborales.
+                </p>
 
-  <div className="dates">
-    <span>🗓️ Apertura: 25/09/2026 · 08:00</span>
-    <span>🔒 Cierre: 30/09/2026 · 23:59</span>
-  </div>
-</div>
+                <div className="admin-training-actions">
+                  <button
+                    type="button"
+                    className="training-action-button"
+                    onClick={shareTrainingByWhatsApp}
+                  >
+                    📱 Enviar por WhatsApp
+                  </button>
+
+                  <button
+                    type="button"
+                    className="training-action-button secondary"
+                    onClick={downloadPrintableTraining}
+                  >
+                    📄 Descargar versión imprimible
+                  </button>
+                </div>
+              </div>
+
+              <div className="dates">
+                <span>🗓️ Apertura: 25/09/2026 · 08:00</span>
+                <span>🔒 Cierre: 30/09/2026 · 23:59</span>
+              </div>
+            </div>
 
             <div className="table-wrap">
               <table>
@@ -1636,6 +2012,206 @@ function App() {
               </div>
             )}
 
+            {/* BIBLIOTECA DE CAPACITACIÓN */}
+            <div className="training-library">
+              <div className="training-library-header">
+                <div>
+                  <span className="eyebrow">RECURSOS PARA LA EMPRESA</span>
+                  <h2>Biblioteca de capacitación</h2>
+                  <p>
+                    Accedé a recursos oficiales para complementar la
+                    capacitación de tu equipo.
+                  </p>
+                </div>
+
+                <a
+                  className="library-main-link"
+                  href="https://www.argentina.gob.ar/srt/capacitacion/aula-virtual"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Ver Aula Virtual SRT ↗
+                </a>
+              </div>
+
+              <div className="library-source">
+                <span className="library-source-icon">🏛️</span>
+
+                <div>
+                  <strong>Superintendencia de Riesgos del Trabajo</strong>
+                  <span>Recursos y capacitaciones oficiales</span>
+                </div>
+              </div>
+
+              <div className="library-grid">
+                <article className="library-card">
+                  <div className="library-card-icon">🪜</div>
+
+                  <span className="library-tag">
+                    FUENTE OFICIAL · SRT
+                  </span>
+
+                  <h3>Trabajo en altura</h3>
+
+                  <p>
+                    Material oficial de referencia sobre prevención de riesgos
+                    asociados a trabajos realizados en altura.
+                  </p>
+
+                  <div className="library-card-actions">
+                    <a
+                      href="https://www.argentina.gob.ar/srt/capacitacion/aula-virtual"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver material oficial ↗
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        createTrainingFromLibrary(
+                          'Trabajo en altura',
+                          'Capacitación interna sobre prevención de riesgos asociados a trabajos realizados en altura.',
+                          'Superintendencia de Riesgos del Trabajo (SRT)',
+                          'Trabajo en altura',
+                          'https://www.argentina.gob.ar/sites/default/files/programa_trabajo_en_altura.pdf',
+                        )
+                      }
+                    >
+                      + Crear capacitación con este material
+                    </button>
+                  </div>
+                </article>
+
+                <article className="library-card">
+                  <div className="library-card-icon">🦺</div>
+
+                  <span className="library-tag">
+                    FUENTE OFICIAL · SRT
+                  </span>
+
+                  <h3>Elementos de protección personal</h3>
+
+                  <p>
+                    Material oficial de referencia sobre selección, utilización,
+                    entrega y cuidado de elementos de protección personal.
+                  </p>
+
+                  <div className="library-card-actions">
+                    <a
+                      href="https://www.argentina.gob.ar/srt/prevencion/epp"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver material oficial ↗
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        createTrainingFromLibrary(
+                          'Elementos de protección personal',
+                          'Capacitación interna sobre selección, utilización, cuidado y control de los elementos de protección personal.',
+                          'Superintendencia de Riesgos del Trabajo (SRT)',
+                          'Elementos de protección personal',
+                          'https://www.argentina.gob.ar/srt/prevencion/epp',
+                        )
+                      }
+                    >
+                      + Crear capacitación con este material
+                    </button>
+                  </div>
+                </article>
+
+                <article className="library-card">
+                  <div className="library-card-icon">🧍</div>
+
+                  <span className="library-tag">
+                    FUENTE OFICIAL · SRT
+                  </span>
+
+                  <h3>Introducción a la Ergonomía</h3>
+
+                  <p>
+                    Guía oficial de referencia para identificación de factores
+                    de riesgo ergonómico y medidas preventivas.
+                  </p>
+
+                  <div className="library-card-actions">
+                    <a
+                      href="https://www.argentina.gob.ar/sites/default/files/res_srt_886_15-guia-practica.pdf"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver material oficial ↗
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        createTrainingFromLibrary(
+                          'Introducción a la Ergonomía',
+                          'Capacitación interna sobre conceptos básicos de ergonomía, identificación de factores de riesgo y prevención en los puestos de trabajo.',
+                          'Superintendencia de Riesgos del Trabajo (SRT)',
+                          'Guía Práctica de Ergonomía',
+                          'https://www.argentina.gob.ar/sites/default/files/res_srt_886_15-guia-practica.pdf',
+                        )
+                      }
+                    >
+                      + Crear capacitación con este material
+                    </button>
+                  </div>
+                </article>
+
+                <article className="library-card">
+                  <div className="library-card-icon">💡</div>
+
+                  <span className="library-tag">
+                    FUENTE OFICIAL · SRT
+                  </span>
+
+                  <h3>Iluminación en el ámbito laboral</h3>
+
+                  <p>
+                    Guía oficial sobre iluminación, confort visual y prevención
+                    de riesgos asociados a las condiciones del ambiente laboral.
+                  </p>
+
+                  <div className="library-card-actions">
+                    <a
+                      href="https://www.argentina.gob.ar/sites/default/files/res_srt_84_12-guia-practica.pdf"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ver material oficial ↗
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        createTrainingFromLibrary(
+                          'Iluminación en el ámbito laboral',
+                          'Capacitación interna sobre condiciones de iluminación, confort visual y prevención de riesgos en el ambiente laboral.',
+                          'Superintendencia de Riesgos del Trabajo (SRT)',
+                          'Guía Práctica sobre Iluminación en el Ambiente Laboral',
+                          'https://www.argentina.gob.ar/sites/default/files/res_srt_84_12-guia-practica.pdf',
+                        )
+                      }
+                    >
+                      + Crear capacitación con este material
+                    </button>
+                  </div>
+                </article>
+              </div>
+
+              <p className="library-disclaimer">
+                Los contenidos enlazados pertenecen a sus respectivos
+                organismos oficiales. Capacita-T facilita el acceso a estos
+                recursos y no reemplaza ni modifica su contenido.
+              </p>
+            </div>
+
           </section>
         )}
 
@@ -1673,6 +2249,8 @@ function App() {
                     <input
                       type="text"
                       placeholder="Ej: Uso correcto de elementos de protección personal"
+                      value={newTrainingTitle}
+                      onChange={(e) => setNewTrainingTitle(e.target.value)}
                     />
                   </label>
 
@@ -1681,8 +2259,20 @@ function App() {
                     <textarea
                       rows={4}
                       placeholder="Breve descripción de la capacitación..."
+                      value={newTrainingDescription}
+                      onChange={(e) => setNewTrainingDescription(e.target.value)}
                     />
                   </label>
+                  {newTrainingSource && (
+                    <div className="training-source-reference">
+                      <span>🏛️ MATERIAL DE REFERENCIA</span>
+                      <strong>{newTrainingSource}</strong>
+                      <small>
+                        Esta capacitación será elaborada por la empresa utilizando
+                        material oficial como fuente de referencia.
+                      </small>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1690,21 +2280,87 @@ function App() {
                 <div className="section-number">2</div>
 
                 <div className="section-content">
-                  <h3>Video de capacitación</h3>
+                  <h3>Material de capacitación</h3>
+
                   <p>
-                    Agregá el material que deberán visualizar los empleados.
+                    Agregá el contenido que deberán utilizar los empleados
+                    durante la capacitación.
                   </p>
 
-                  <label>
-                    URL del video
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                    />
-                  </label>
+                  <div className="training-material-grid">
+
+                    <div className="training-material-option">
+                      <div className="training-material-option-header">
+                        <span className="training-material-icon">▶️</span>
+
+                        <div>
+                          <strong>Video</strong>
+                          <small>
+                            Agregá un video propio o alojado en una plataforma externa.
+                          </small>
+                        </div>
+                      </div>
+
+                      <label>
+                        URL del video
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                        />
+                      </label>
+                    </div>
+
+                    <div className="training-material-option">
+                      <div className="training-material-option-header">
+                        <span className="training-material-icon">📄</span>
+
+                        <div>
+                          <strong>Documento</strong>
+                          <small>
+                            Incorporá material en PDF para complementar la capacitación.
+                          </small>
+                        </div>
+                      </div>
+
+                      <label className="training-file-input">
+                        Seleccionar PDF
+                        <input
+                          type="file"
+                          accept="application/pdf"
+                        />
+                      </label>
+                    </div>
+
+                  </div>
+
+                  {newTrainingSource && (
+                    <div className="selected-reference-material">
+                      <div className="selected-reference-icon">🏛️</div>
+
+                      <div className="selected-reference-content">
+                        <span>MATERIAL OFICIAL DE REFERENCIA</span>
+
+                        <strong>
+                          {newTrainingMaterialTitle}
+                        </strong>
+
+                        <small>
+                          Fuente: {newTrainingSource}
+                        </small>
+                      </div>
+
+                      <a
+                        href={newTrainingMaterialUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Ver fuente ↗
+                      </a>
+                    </div>
+                  )}
+
                 </div>
               </div>
-
               <div className="form-section">
                 <div className="section-number">3</div>
 
@@ -1735,50 +2391,122 @@ function App() {
                   <h3>Evaluación</h3>
 
                   <p>
-                    Creá las preguntas que deberán responder después del video.
+                    Creá las preguntas que deberán responder después de completar
+                    el material de capacitación.
                   </p>
 
-                  <div className="demo-question">
-                    <div className="demo-question-header">
-                      <strong>Pregunta 1</strong>
-                      <span>Multiple choice</span>
-                    </div>
+                  <div className="training-questions-list">
+                    {newTrainingQuestions.map((questionItem, questionIndex) => (
+                      <div
+                        className="demo-question"
+                        key={questionIndex}
+                      >
+                        <div className="demo-question-header">
+                          <strong>
+                            Pregunta {questionIndex + 1}
+                          </strong>
 
-                    <input
-                      type="text"
-                      placeholder="Escribí la pregunta..."
-                    />
+                          <div className="question-header-actions">
+                            <span>Multiple choice</span>
 
-                    <div className="option-input">
-                      <input type="radio" name="correct-demo" />
-                      <input
-                        type="text"
-                        placeholder="Opción A"
-                      />
-                    </div>
+                            {newTrainingQuestions.length > 1 && (
+                              <button
+                                type="button"
+                                className="remove-question-button"
+                                onClick={() =>
+                                  removeTrainingQuestion(questionIndex)
+                                }
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
+                        </div>
 
-                    <div className="option-input">
-                      <input type="radio" name="correct-demo" />
-                      <input
-                        type="text"
-                        placeholder="Opción B"
-                      />
-                    </div>
+                        <input
+                          type="text"
+                          placeholder="Escribí la pregunta..."
+                          value={questionItem.text}
+                          onChange={(e) =>
+                            updateTrainingQuestion(
+                              questionIndex,
+                              e.target.value,
+                            )
+                          }
+                        />
 
-                    <div className="option-input">
-                      <input type="radio" name="correct-demo" />
-                      <input
-                        type="text"
-                        placeholder="Opción C"
-                      />
-                    </div>
+                        {questionItem.options.map((option, optionIndex) => (
+                          <div
+                            className="option-input"
+                            key={optionIndex}
+                          >
+                            <input
+                              type="radio"
+                              name={`correct-question-${questionIndex}`}
+                              checked={questionItem.correctAnswer === optionIndex}
+                              onChange={() =>
+                                setNewTrainingQuestions((currentQuestions) =>
+                                  currentQuestions.map((currentQuestion, index) =>
+                                    index === questionIndex
+                                      ? {
+                                        ...currentQuestion,
+                                        correctAnswer: optionIndex,
+                                      }
+                                      : currentQuestion
+                                  )
+                                )
+                              }
+                            />
 
-                    <small>
-                      Seleccioná el círculo correspondiente a la respuesta correcta.
-                    </small>
+                            <input
+                              type="text"
+                              placeholder={`Opción ${String.fromCharCode(65 + optionIndex)}`}
+                              value={option}
+                              onChange={(e) =>
+                                updateTrainingOption(
+                                  questionIndex,
+                                  optionIndex,
+                                  e.target.value,
+                                )
+                              }
+                            />
+
+                            {questionItem.options.length > 2 && (
+                              <button
+                                type="button"
+                                className="remove-option-button"
+                                onClick={() =>
+                                  removeTrainingOption(questionIndex, optionIndex)
+                                }
+                                title="Eliminar opción"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          className="add-option-button"
+                          onClick={() => addTrainingOption(questionIndex)}
+                        >
+                          + Agregar opción
+                        </button>
+
+                        <small>
+                          Seleccioná el círculo correspondiente a la respuesta
+                          correcta.
+                        </small>
+                      </div>
+                    ))}
                   </div>
 
-                  <button className="add-question">
+                  <button
+                    type="button"
+                    className="add-question"
+                    onClick={addTrainingQuestion}
+                  >
                     + Agregar otra pregunta
                   </button>
                 </div>
